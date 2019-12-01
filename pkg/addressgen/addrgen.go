@@ -55,26 +55,32 @@ func main() {
 	// 	return
 	// }
 
-	// Derive the extended key for account 0.  This gives the path:
-	//   m/0H
+	// Derive the extended key for account 0.
+	// This gives the path: m/0H
 	acct0, err := masterKey.Child(hdkeychain.HardenedKeyStart + 0)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// Derive the extended key for the account 0 external chain.  This
-	// gives the path:
-	//   m/0H/0
+	// Store the public key of the account 0 to have the ability to derivate any
+	// This gives the path: M/0H
+	acct0Neuter, err := acct0.Neuter()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Derive the extended key for the account 0 external chain.
+	// This gives the path: m/0H/0
 	acct0Ext, err := acct0.Child(0)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// Derive the extended key for the account 0 internal chain.  This gives
-	// the path:
-	//   m/0H/1
+	// Derive the extended key for the account 0 internal chain.
+	// This gives the path: m/0H/1
 	acct0Int, err := acct0.Child(1)
 	if err != nil {
 		fmt.Println(err)
@@ -84,24 +90,21 @@ func main() {
 	// At this point, acct0Ext and acct0Int are ready to derive the keys for
 	// the external and internal wallet chains.
 
-	// Derive the 10th extended key for the account 0 external chain.  This
-	// gives the path:
-	//   m/0H/0/10
+	// Derive the 10th extended key for the account 0 external chain.
+	// This gives the path: m/0H/0/10
 	acct0Ext10, err := acct0Ext.Child(10)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	// Derive the 1st extended key for the account 0 internal chain.  This
-	// gives the path:
-	//   m/0H/1/0
+	// Derive the 1st extended key for the account 0 internal chain.
+	// This gives the path: m/0H/1/0
 	acct0Int0, err := acct0Int.Child(0)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
 	// Get and show the address associated with the extended keys for the
 	// main bitcoin	network.
 	acct0ExtAddr, err := acct0Ext10.Address(&chaincfg.MainNetParams)
@@ -114,6 +117,8 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+
+	fmt.Println("Account 0 Neuter: ", acct0Neuter)
 	fmt.Println("Account 0 External Address 10:", acct0ExtAddr)
 	fmt.Println("Account 0 Internal Address 0:", acct0IntAddr)
 
