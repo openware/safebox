@@ -13,5 +13,12 @@ services:
       VAULT_DEV_ROOT_TOKEN_ID: changeme
       VAULT_ADDR: http://vault:8200
 
+  bitcoind:
+    image: quay.io/openware/bitcoind:0.17.1
+    restart: always
+    volumes:
+      - ../data/bitcoin:/bitcoin
+      - ../config/bitcoin.conf:/bitcoin/.bitcoin/bitcoin.conf
+
 volumes:
   vault_data:
