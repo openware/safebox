@@ -41,6 +41,7 @@ func LoadSigningKey(fileName string) error {
 
 	return nil
 }
+
 func authPublicKey(_ *jwt.Token) (interface{}, error) {
 	return signingKey, nil
 }
