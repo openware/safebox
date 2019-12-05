@@ -1,21 +1,21 @@
-package main
+package tools
 
 import (
-	"encoding/hex"
 	"fmt"
 	"log"
-	"os"
 
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/hashicorp/vault/api"
+	"github.com/openware/safebox/pkg/env"
 )
 
 // VaultClient points to vault Client
 var VaultClient *api.Client // global variable
 
-var vaultToken = os.Getenv("VAULT_TOKEN")
-var vaultAddr = os.Getenv("VAULT_ADDR")
+var vaultToken = env.FetchDefault("VAULT_TOKEN", "changeme2")
+var vaultAddr = env.FetchDefault("VAULT_ADDR", "http://localhost:8200")
+
+const secretMasterKey = "cubbyhole/masterkey"
 
 // InitVault initializes vault client
 func InitVault(token string) error {
@@ -33,10 +33,13 @@ func InitVault(token string) error {
 	return nil
 }
 
-func storeMasterKey(masterKey *hdkeychain.ExtendedKey) error {
-	pathArg := "cubbyhole/masterkey"
+func initVault(client *api.Client) {
+	VaultClient = client
+}
+
+func StoreMasterKey(masterKey *hdkeychain.ExtendedKey) error {
 	c := VaultClient.Logical()
-	_, err := c.Write(pathArg,
+	_, err := c.Write(secretMasterKey,
 		map[string]interface{}{
 			"key": masterKey.String(),
 		})
@@ -47,38 +50,44 @@ func storeMasterKey(masterKey *hdkeychain.ExtendedKey) error {
 	return nil
 }
 
-func getMasterKey() (interface{}, error) {
-	pathArg := "cubbyhole/masterkey"
-
+func GetMasterKey() (*hdkeychain.ExtendedKey, error) {
 	c := VaultClient.Logical()
-	v, err := c.Read(pathArg)
+	v, err := c.Read(secretMasterKey)
 	if err != nil {
-		return nil, fmt.Errorf("%v", err)
+		return nil, err
 	}
 	if v == nil {
 		return nil, fmt.Errorf("value not found!")
 	}
-	if _, err := v.Data["key"]; !err {
+	keyInt := v.Data["key"]
+	if keyInt == nil {
 		return nil, fmt.Errorf("such key doesn't exist!")
 	}
-	return v.Data["key"], nil
+
+	return hdkeychain.NewKeyFromString(fmt.Sprintf("%v", keyInt))
 }
 
-func main() {
-	err := InitVault(vaultToken)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	testVec1MasterHex := "000102030405060708090a0b0c0d0e0f"
-	masterSeed, err := hex.DecodeString(testVec1MasterHex)
-	masterKey, err := hdkeychain.NewMaster(masterSeed, &chaincfg.MainNetParams)
+// func main() {
+// 	err := InitVault(vaultToken)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 		return
+// 	}
+// 	testVec1MasterHex := "000102030405060708090a0b0c0d0e0f"
+// 	masterSeed, err := hex.DecodeString(testVec1MasterHex)
+// 	masterKey, err := hdkeychain.NewMaster(masterSeed, &chaincfg.MainNetParams)
 
-	storeMasterKey(masterKey)
-	masterKey2, _ := getMasterKey()
+// 	err = StoreMasterKey(masterKey)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 		return
+// 	}
+// 	masterKey2, err := GetMasterKey()
+// 	if err != nil {
+// 		log.Fatal(err)
+// 		return
+// 	}
 
-	masterKey2 = fmt.Sprintf("%v", masterKey2)
-
-	fmt.Println("Master key1: ", masterKey.String())
-	fmt.Println("Master key2: ", masterKey2)
-}
+// 	fmt.Println("Master key1: ", masterKey.String())
+// 	fmt.Println("Master key2: ", masterKey2.String())
+// }
