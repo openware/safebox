@@ -50,16 +50,16 @@ func StoreMasterKey(masterKey *hdkeychain.ExtendedKey) error {
 	return nil
 }
 
-func GetMasterKey() (*hdkeychain.ExtendedKey, error) {
+func GetMasterKey(s string, masterKeyPath string) (*hdkeychain.ExtendedKey, error) {
 	c := VaultClient.Logical()
-	v, err := c.Read(secretMasterKey)
+	v, err := c.Read(masterKeyPath)
 	if err != nil {
 		return nil, err
 	}
 	if v == nil {
-		return nil, fmt.Errorf("value not found!")
+		return nil, fmt.Errorf("path doesn't exist!")
 	}
-	keyInt := v.Data["key"]
+	keyInt := v.Data[s]
 	if keyInt == nil {
 		return nil, fmt.Errorf("such key doesn't exist!")
 	}

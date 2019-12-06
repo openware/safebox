@@ -7,6 +7,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/docker/docker/pkg/testutil/assert"
 	"github.com/hashicorp/vault/api"
 )
@@ -48,7 +49,7 @@ func TestGetMasterKey(t *testing.T) {
 	client.SetToken("foo")
 	initVault(client)
 
-	key, err := GetMasterKey()
+	key, err := GetMasterKey("key", "cubbyhole/masterkey")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
@@ -57,6 +58,22 @@ func TestGetMasterKey(t *testing.T) {
 		"xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jP"+
 			"PqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi",
 		key.String())
+
+	key2, err2 := GetMasterKey("yek", "cubbyhole/masterkey")
+	if err2 == nil {
+		t.Fatalf("err: expected error hasn't occured")
+	}
+
+	assert.Error(t, err2, "such key doesn't exist!")
+	assert.Equal(t, (*hdkeychain.ExtendedKey)(nil), key2)
+
+	key3, err3 := GetMasterKey("key", "cubbyhole/minorkey")
+	if err3 == nil {
+		t.Fatalf("err: expected error hasn't occured")
+	}
+
+	assert.Error(t, err3, "path doesn't exist!")
+	assert.Equal(t, (*hdkeychain.ExtendedKey)(nil), key3)
 
 	// // Do a raw "/" request
 	// resp, err := client.RawRequest(client.NewRequest("PUT", "/"))
