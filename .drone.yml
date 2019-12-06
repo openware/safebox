@@ -1,0 +1,15 @@
+kind: pipeline
+name: default
+
+trigger:
+  event:
+  - push
+
+steps:
+  - name: Go test
+    image: golang:1.13
+    environment:
+      GO111MODULE: on
+    commands:
+      - go mod download
+      - go test ./...
