@@ -64,12 +64,12 @@ func vaultPathChain(scope string, ccyCode string, accountID uint8, chainID uint8
 	return fmt.Sprintf("cubbyhole/%s/%s/account/%d/%d", scope, ccyCode, accountID, chainID), nil
 }
 
-func vaultPathAccountKey(scope string, ccyCode string, accountID uint8, chainID uint8, keyID uint8) (string, error) {
+func vaultPathAccountKey(scope string, ccyCode string, accountID uint8, chainID uint8, addID uint8) (string, error) {
 	path, err := vaultPathChain(scope, ccyCode, accountID, chainID)
 	if err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("%s/%d/key", path, keyID), nil
+	return fmt.Sprintf("%s/%d/key", path, addID), nil
 }
 
 func vaultPathAccountIndex(scope string, ccyCode string, accountID uint8, chainID uint8) (string, error) {
@@ -80,9 +80,9 @@ func vaultPathAccountIndex(scope string, ccyCode string, accountID uint8, chainI
 	return fmt.Sprintf("%s/index", path), nil
 }
 
-func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID uint8, chainID uint8, keyID uint8) error {
+func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID uint8, chainID uint8, addID uint8) error {
 	c := VaultClient.Logical()
-	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, keyID)
+	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, addID)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID 
 		return err
 	}
 
-	path, err = vaultPathAccountKey("public", ccyCode, accountID, chainID, keyID)
+	path, err = vaultPathAccountKey("public", ccyCode, accountID, chainID, addID)
 	if err != nil {
 		return err
 	}
@@ -113,9 +113,9 @@ func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID 
 	return err
 }
 
-func GetPublicKey(ccyCode string, accountID uint8, chainID uint8, keyID uint8) (*hdkeychain.ExtendedKey, error) {
+func GetPublicAddress(ccyCode string, accountID uint8, chainID uint8, addID uint8) (*hdkeychain.ExtendedKey, error) {
 	c := VaultClient.Logical()
-	path, err := vaultPathAccountKey("public", ccyCode, accountID, chainID, keyID)
+	path, err := vaultPathAccountKey("public", ccyCode, accountID, chainID, addID)
 	if err != nil {
 		return nil, err
 	}
@@ -133,9 +133,9 @@ func GetPublicKey(ccyCode string, accountID uint8, chainID uint8, keyID uint8) (
 	return hdkeychain.NewKeyFromString(fmt.Sprint(pubStr))
 }
 
-func GetPrivateKey(ccyCode string, accountID uint8, chainID uint8, keyID uint8) (*hdkeychain.ExtendedKey, error) {
+func GetPrivateAddress(ccyCode string, accountID uint8, chainID uint8, addID uint8) (*hdkeychain.ExtendedKey, error) {
 	c := VaultClient.Logical()
-	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, keyID)
+	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, addID)
 	if err != nil {
 		return nil, err
 	}
