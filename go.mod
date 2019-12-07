@@ -5,7 +5,7 @@ go 1.13
 require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
-	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
+	github.com/buger/jsonparser v0.0.0-20191204142016-1a29609e0929
 	github.com/cosmos/cosmos-sdk v0.37.4
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/docker/docker v1.13.1

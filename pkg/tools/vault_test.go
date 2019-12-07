@@ -42,7 +42,7 @@ func testVaultClient(t *testing.T, handler func(http.ResponseWriter, *http.Reque
 	client, err := api.NewClient(config)
 	assert.NoError(t, err)
 	client.SetToken("foo")
-	initVault(client)
+	setVaultClient(client)
 	return ln
 }
 
@@ -61,7 +61,7 @@ func testAccountKey(t *testing.T) *hdkeychain.ExtendedKey {
 	return key
 }
 
-func testAccountAddressPrivate(t *testing.T, chainID uint8, addressID uint) *hdkeychain.ExtendedKey {
+func testAccountAddressPrivate(t *testing.T, chainID uint32, addressID uint32) *hdkeychain.ExtendedKey {
 	chainKey, err := testAccountKey(t).Child(uint32(chainID))
 	assert.NoError(t, err)
 	addressKey, err := chainKey.Child(uint32(addressID))
@@ -69,7 +69,7 @@ func testAccountAddressPrivate(t *testing.T, chainID uint8, addressID uint) *hdk
 	return addressKey
 }
 
-func testAccountAddressPublic(t *testing.T, chainID uint8, addressID uint) *hdkeychain.ExtendedKey {
+func testAccountAddressPublic(t *testing.T, chainID uint32, addressID uint32) *hdkeychain.ExtendedKey {
 	chainKey, err := testAccountKey(t).Child(uint32(chainID))
 	assert.NoError(t, err)
 	chainNeuterKey, err := chainKey.Neuter()
@@ -104,19 +104,19 @@ func TestVaultPathMasterKey(t *testing.T) {
 
 func TestVaultPathChain(t *testing.T) {
 	t.Run("it returns public chain path", func(t *testing.T) {
-		path, err := vaultPathChain("public", "abc", 12, chainExternal)
+		path, err := vaultPathChain("public", "abc", 12, ChainExternal)
 		assert.NoError(t, err)
 		assert.Equal(t, "cubbyhole/public/abc/account/12/0", path)
 	})
 
 	t.Run("it returns private chain path", func(t *testing.T) {
-		path, err := vaultPathChain("private", "abc", 12, chainInternal)
+		path, err := vaultPathChain("private", "abc", 12, ChainInternal)
 		assert.NoError(t, err)
 		assert.Equal(t, "cubbyhole/private/abc/account/12/1", path)
 	})
 
 	t.Run("it returns an error when the scope is invalid", func(t *testing.T) {
-		path, err := vaultPathChain("invalid", "abc", 12, chainInternal)
+		path, err := vaultPathChain("invalid", "abc", 12, ChainInternal)
 		assert.Error(t, err, "Unexpected scope: invalid")
 		assert.Equal(t, "", path)
 	})
@@ -124,19 +124,19 @@ func TestVaultPathChain(t *testing.T) {
 
 func TestVaultPathAccountKey(t *testing.T) {
 	t.Run("it returns public account key", func(t *testing.T) {
-		path, err := vaultPathAccountKey("public", "abc", 12, chainExternal, 21)
+		path, err := vaultPathAccountKey("public", "abc", 12, ChainExternal, 21)
 		assert.NoError(t, err)
 		assert.Equal(t, "cubbyhole/public/abc/account/12/0/21/key", path)
 	})
 
 	t.Run("it returns private account path", func(t *testing.T) {
-		path, err := vaultPathAccountKey("private", "abc", 12, chainInternal, 21)
+		path, err := vaultPathAccountKey("private", "abc", 12, ChainInternal, 21)
 		assert.NoError(t, err)
 		assert.Equal(t, "cubbyhole/private/abc/account/12/1/21/key", path)
 	})
 
 	t.Run("it returns an error when the scope is invalid", func(t *testing.T) {
-		path, err := vaultPathAccountKey("invalid", "abc", 12, chainInternal, 21)
+		path, err := vaultPathAccountKey("invalid", "abc", 12, ChainInternal, 21)
 		assert.Error(t, err, "Unexpected scope: invalid")
 		assert.Equal(t, "", path)
 	})
@@ -144,19 +144,19 @@ func TestVaultPathAccountKey(t *testing.T) {
 
 func TestVaultPathAccountIndex(t *testing.T) {
 	t.Run("it returns public account key", func(t *testing.T) {
-		path, err := vaultPathAccountIndex("public", "abc", 12, chainExternal)
+		path, err := vaultPathAccountIndex("public", "abc", 12, ChainExternal)
 		assert.NoError(t, err)
 		assert.Equal(t, "cubbyhole/public/abc/account/12/0/index", path)
 	})
 
 	t.Run("it returns private account path", func(t *testing.T) {
-		path, err := vaultPathAccountIndex("private", "abc", 12, chainInternal)
+		path, err := vaultPathAccountIndex("private", "abc", 12, ChainInternal)
 		assert.NoError(t, err)
 		assert.Equal(t, "cubbyhole/private/abc/account/12/1/index", path)
 	})
 
 	t.Run("it returns an error when the scope is invalid", func(t *testing.T) {
-		path, err := vaultPathAccountIndex("invalid", "abc", 12, chainInternal)
+		path, err := vaultPathAccountIndex("invalid", "abc", 12, ChainInternal)
 		assert.Error(t, err, "Unexpected scope: invalid")
 		assert.Equal(t, "", path)
 	})
@@ -172,7 +172,7 @@ func TestStoreChainIndex(t *testing.T) {
 			assert.Equal(t, "/v1/cubbyhole/public/abc/account/12/0/index", req.RequestURI)
 		})
 		defer ln.Close()
-		err := StoreChainIndex(15, "abc", accID, chainExternal)
+		err := StoreChainIndex(15, "abc", accID, ChainExternal)
 		assert.NoError(t, err)
 	})
 
@@ -183,7 +183,7 @@ func TestStoreChainIndex(t *testing.T) {
 		})
 		defer ln.Close()
 
-		err := StoreChainIndex(15, "abc", accID, chainExternal)
+		err := StoreChainIndex(15, "abc", accID, ChainExternal)
 		assert.Error(t, err, "Error making API request.")
 	})
 }
@@ -198,7 +198,7 @@ func TestGetChainIndex(t *testing.T) {
 			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"index":"17"},"wrap_info":null,"warnings":null,"auth":null}`))
 		})
 		defer ln.Close()
-		idx, err := GetChainIndex("abc", accID, chainExternal)
+		idx, err := GetChainIndex("abc", accID, ChainExternal)
 		assert.NoError(t, err)
 		assert.Equal(t, 17, idx)
 	})
@@ -210,16 +210,16 @@ func TestGetChainIndex(t *testing.T) {
 		})
 		defer ln.Close()
 
-		idx, err := GetChainIndex("abc", accID, chainExternal)
+		idx, err := GetChainIndex("abc", accID, ChainExternal)
 		assert.Error(t, err, "Error making API request.")
 		assert.Equal(t, -1, idx)
 	})
 }
 
 func TestStoreAccountAddress(t *testing.T) {
-	chain := chainExternal
+	chain := ChainExternal
 	accID := uint(12)
-	addID := uint(42)
+	addID := uint32(42)
 	privAddr := testAccountAddressPrivate(t, chain, addID)
 
 	t.Run("Succeed to store the address", func(t *testing.T) {
@@ -257,9 +257,9 @@ func TestStoreAccountAddress(t *testing.T) {
 }
 
 func TestGetPublicAddress(t *testing.T) {
-	chain := chainExternal
+	chain := ChainExternal
 	accID := uint(12)
-	addID := uint(42)
+	addID := uint32(42)
 	pubAddr := testAccountAddressPublic(t, chain, addID)
 
 	t.Run("Succeed to retrieve the address", func(t *testing.T) {
@@ -287,9 +287,9 @@ func TestGetPublicAddress(t *testing.T) {
 }
 
 func TestGetPrivateAddress(t *testing.T) {
-	chain := chainExternal
+	chain := ChainExternal
 	accID := uint(12)
-	addID := uint(42)
+	addID := uint32(42)
 	privAddr := testAccountAddressPrivate(t, chain, addID)
 
 	t.Run("Succeed to retrieve the address", func(t *testing.T) {
@@ -325,7 +325,7 @@ func TestGetMasterKeyPrivate(t *testing.T) {
 		})
 		defer ln.Close()
 
-		key, err := GetMasterKeyPrivate()
+		key, err := GetMasterKeyPrivate("btc")
 		assert.NoError(t, err)
 		assert.Equal(t, testMasterKeyString, key.String())
 	})
@@ -337,7 +337,7 @@ func TestGetMasterKeyPrivate(t *testing.T) {
 		})
 		defer ln.Close()
 
-		key, err := GetMasterKeyPrivate()
+		key, err := GetMasterKeyPrivate("btc")
 		assert.Error(t, err)
 		assert.Nil(t, key)
 	})
@@ -349,7 +349,7 @@ func TestGetMasterKeyPrivate(t *testing.T) {
 		})
 		defer ln.Close()
 
-		key, err := GetMasterKeyPrivate()
+		key, err := GetMasterKeyPrivate("btc")
 		assert.Error(t, err, "Error making API request.")
 		assert.Nil(t, key)
 	})
@@ -374,7 +374,7 @@ func TestStoreMasterKey(t *testing.T) {
 		})
 		defer ln.Close()
 
-		err := StoreMasterKey(testMasterKey(t))
+		err := StoreMasterKey(testMasterKey(t), "btc")
 		assert.NoError(t, err)
 	})
 
@@ -385,7 +385,7 @@ func TestStoreMasterKey(t *testing.T) {
 		})
 		defer ln.Close()
 
-		err := StoreMasterKey(testMasterKey(t))
+		err := StoreMasterKey(testMasterKey(t), "btc")
 		assert.Error(t, err, "Error making API request.")
 	})
 }

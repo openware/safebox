@@ -21,6 +21,8 @@ func StartAPIServer() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", notFoundHandler)
+	r.HandleFunc("/api/v2/private/master_key", CreateMasterKey).Methods("POST")
+	r.HandleFunc("/api/v2/private/deposit_address", CreateDepositAddress).Methods("POST")
 	r.HandleFunc("/api/v2/private/info", InfoHandler).Methods("GET", "POST")
 	auth := jwtMiddleware{}
 	r.Use(auth.Middleware)
