@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/btcsuite/btcutil/hdkeychain"
 	"github.com/hashicorp/vault/api"
@@ -57,14 +58,14 @@ func vaultPathMasterKey(scope string, ccyCode string) (string, error) {
 	return fmt.Sprintf("cubbyhole/%s/%s/master/key", scope, ccyCode), nil
 }
 
-func vaultPathChain(scope string, ccyCode string, accountID uint8, chainID uint8) (string, error) {
+func vaultPathChain(scope string, ccyCode string, accountID uint, chainID uint8) (string, error) {
 	if err := validateScope(scope); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("cubbyhole/%s/%s/account/%d/%d", scope, ccyCode, accountID, chainID), nil
 }
 
-func vaultPathAccountKey(scope string, ccyCode string, accountID uint8, chainID uint8, addID uint8) (string, error) {
+func vaultPathAccountKey(scope string, ccyCode string, accountID uint, chainID uint8, addID uint) (string, error) {
 	path, err := vaultPathChain(scope, ccyCode, accountID, chainID)
 	if err != nil {
 		return "", err
@@ -72,7 +73,7 @@ func vaultPathAccountKey(scope string, ccyCode string, accountID uint8, chainID 
 	return fmt.Sprintf("%s/%d/key", path, addID), nil
 }
 
-func vaultPathAccountIndex(scope string, ccyCode string, accountID uint8, chainID uint8) (string, error) {
+func vaultPathChainIndex(scope string, ccyCode string, accountID uint, chainID uint8) (string, error) {
 	path, err := vaultPathChain(scope, ccyCode, accountID, chainID)
 	if err != nil {
 		return "", err
@@ -80,7 +81,54 @@ func vaultPathAccountIndex(scope string, ccyCode string, accountID uint8, chainI
 	return fmt.Sprintf("%s/index", path), nil
 }
 
-func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID uint8, chainID uint8, addID uint8) error {
+func vaultPathAccountIndex(scope string, ccyCode string, accountID uint, chainID uint8) (string, error) {
+	path, err := vaultPathChain(scope, ccyCode, accountID, chainID)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s/index", path), nil
+}
+
+func StoreChainIndex(index int, ccyCode string, accountID uint, chainID uint8) error {
+	c := VaultClient.Logical()
+	path, err := vaultPathChainIndex("public", ccyCode, accountID, chainID)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.Write(path,
+		map[string]interface{}{
+			"index": strconv.Itoa(index),
+		})
+
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
+func GetChainIndex(ccyCode string, accountID uint, chainID uint8) (int, error) {
+	c := VaultClient.Logical()
+	path, err := vaultPathChainIndex("public", ccyCode, accountID, chainID)
+	if err != nil {
+		return -1, err
+	}
+	v, err := c.Read(path)
+	if err != nil {
+		return -1, err
+	}
+	if v == nil {
+		return -2, fmt.Errorf("index not found")
+	}
+	index := v.Data["index"]
+	if index == nil {
+		return -2, fmt.Errorf("index not found in object")
+	}
+	return strconv.Atoi(fmt.Sprint(index))
+}
+
+func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID uint, chainID uint8, addID uint) error {
 	c := VaultClient.Logical()
 	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, addID)
 	if err != nil {
@@ -113,7 +161,7 @@ func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID 
 	return err
 }
 
-func GetPublicAddress(ccyCode string, accountID uint8, chainID uint8, addID uint8) (*hdkeychain.ExtendedKey, error) {
+func GetPublicAddress(ccyCode string, accountID uint, chainID uint8, addID uint) (*hdkeychain.ExtendedKey, error) {
 	c := VaultClient.Logical()
 	path, err := vaultPathAccountKey("public", ccyCode, accountID, chainID, addID)
 	if err != nil {
@@ -133,7 +181,7 @@ func GetPublicAddress(ccyCode string, accountID uint8, chainID uint8, addID uint
 	return hdkeychain.NewKeyFromString(fmt.Sprint(pubStr))
 }
 
-func GetPrivateAddress(ccyCode string, accountID uint8, chainID uint8, addID uint8) (*hdkeychain.ExtendedKey, error) {
+func GetPrivateAddress(ccyCode string, accountID uint, chainID uint8, addID uint) (*hdkeychain.ExtendedKey, error) {
 	c := VaultClient.Logical()
 	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, addID)
 	if err != nil {

@@ -3,6 +3,7 @@ package tools
 import (
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -60,7 +61,7 @@ func testAccountKey(t *testing.T) *hdkeychain.ExtendedKey {
 	return key
 }
 
-func testAccountAddressPrivate(t *testing.T, chainID uint8, addressID uint8) *hdkeychain.ExtendedKey {
+func testAccountAddressPrivate(t *testing.T, chainID uint8, addressID uint) *hdkeychain.ExtendedKey {
 	chainKey, err := testAccountKey(t).Child(uint32(chainID))
 	assert.NoError(t, err)
 	addressKey, err := chainKey.Child(uint32(addressID))
@@ -68,7 +69,7 @@ func testAccountAddressPrivate(t *testing.T, chainID uint8, addressID uint8) *hd
 	return addressKey
 }
 
-func testAccountAddressPublic(t *testing.T, chainID uint8, addressID uint8) *hdkeychain.ExtendedKey {
+func testAccountAddressPublic(t *testing.T, chainID uint8, addressID uint) *hdkeychain.ExtendedKey {
 	chainKey, err := testAccountKey(t).Child(uint32(chainID))
 	assert.NoError(t, err)
 	chainNeuterKey, err := chainKey.Neuter()
@@ -161,21 +162,78 @@ func TestVaultPathAccountIndex(t *testing.T) {
 	})
 }
 
+func TestStoreChainIndex(t *testing.T) {
+	accID := uint(12)
+
+	t.Run("Succeed to store the chain index", func(t *testing.T) {
+		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+			data, _ := ioutil.ReadAll(req.Body)
+			assert.Equal(t, `{"index":"15"}`, string(data))
+			assert.Equal(t, "/v1/cubbyhole/public/abc/account/12/0/index", req.RequestURI)
+		})
+		defer ln.Close()
+		err := StoreChainIndex(15, "abc", accID, chainExternal)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Authentication fails", func(t *testing.T) {
+		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(403)
+			w.Write([]byte(`{"errors":["permission denied"]}`))
+		})
+		defer ln.Close()
+
+		err := StoreChainIndex(15, "abc", accID, chainExternal)
+		assert.Error(t, err, "Error making API request.")
+	})
+}
+
+func TestGetChainIndex(t *testing.T) {
+	accID := uint(12)
+
+	t.Run("Succeed to store the chain index", func(t *testing.T) {
+		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+			assert.Equal(t, "/v1/cubbyhole/public/abc/account/12/0/index", req.RequestURI)
+			w.WriteHeader(200)
+			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"index":"17"},"wrap_info":null,"warnings":null,"auth":null}`))
+		})
+		defer ln.Close()
+		idx, err := GetChainIndex("abc", accID, chainExternal)
+		assert.NoError(t, err)
+		assert.Equal(t, 17, idx)
+	})
+
+	t.Run("Authentication fails", func(t *testing.T) {
+		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(403)
+			w.Write([]byte(`{"errors":["permission denied"]}`))
+		})
+		defer ln.Close()
+
+		idx, err := GetChainIndex("abc", accID, chainExternal)
+		assert.Error(t, err, "Error making API request.")
+		assert.Equal(t, -1, idx)
+	})
+}
+
 func TestStoreAccountAddress(t *testing.T) {
 	chain := chainExternal
-	accID := uint8(12)
-	addID := uint8(42)
+	accID := uint(12)
+	addID := uint(42)
 	privAddr := testAccountAddressPrivate(t, chain, addID)
 
 	t.Run("Succeed to store the address", func(t *testing.T) {
 		i := 0
 		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+			data, _ := ioutil.ReadAll(req.Body)
 			w.WriteHeader(204)
 			switch i {
 			case 0:
 				assert.Equal(t, "/v1/cubbyhole/private/abc/account/12/0/42/key", req.RequestURI)
+				assert.Equal(t, `{"priv":"xprv9ywcwX3xwc1gGPRvHdNx5XwC6mh8Gvx4GPP81adscqPmn1rTy9wNBoRgWtigAKoLVUpgndi5f9jociyAConZaF1uMo7Rp9mnKgpdXac2hTj"}`, string(data))
 			case 1:
 				assert.Equal(t, "/v1/cubbyhole/public/abc/account/12/0/42/key", req.RequestURI)
+				assert.Equal(t, `{"pub":"xpub6CvyM2armyZyUsWPPeuxSfsveoXcgPfudcJioy3VBAvkepBcWhFcjbkAN8t6xASmcSZN5fZH4kYKaLCzzdVBdD1Mncm1PoepnwtncUhHV3a"}`, string(data))
 			default:
 				assert.Fail(t, "server called more than 2 times")
 			}
@@ -200,8 +258,8 @@ func TestStoreAccountAddress(t *testing.T) {
 
 func TestGetPublicAddress(t *testing.T) {
 	chain := chainExternal
-	accID := uint8(12)
-	addID := uint8(42)
+	accID := uint(12)
+	addID := uint(42)
 	pubAddr := testAccountAddressPublic(t, chain, addID)
 
 	t.Run("Succeed to retrieve the address", func(t *testing.T) {
@@ -226,13 +284,12 @@ func TestGetPublicAddress(t *testing.T) {
 		assert.Error(t, err, "Error making API request.")
 		assert.Nil(t, key)
 	})
-
 }
 
 func TestGetPrivateAddress(t *testing.T) {
 	chain := chainExternal
-	accID := uint8(12)
-	addID := uint8(42)
+	accID := uint(12)
+	addID := uint(42)
 	privAddr := testAccountAddressPrivate(t, chain, addID)
 
 	t.Run("Succeed to retrieve the address", func(t *testing.T) {
@@ -300,7 +357,19 @@ func TestGetMasterKeyPrivate(t *testing.T) {
 
 func TestStoreMasterKey(t *testing.T) {
 	t.Run("Succeed to store the token", func(t *testing.T) {
+		i := 0
 		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+			i++
+			data, err := ioutil.ReadAll(req.Body)
+			assert.NoError(t, err)
+			switch i {
+			case 1:
+				assert.Equal(t, `{"priv":"xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"}`, string(data))
+			case 2:
+				assert.Equal(t, `{"pub":"xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8"}`, string(data))
+			default:
+				assert.Fail(t, "exactly 2 calls expected to vault")
+			}
 			w.WriteHeader(204)
 		})
 		defer ln.Close()
