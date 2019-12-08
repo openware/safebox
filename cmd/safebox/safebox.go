@@ -3,6 +3,8 @@ package main
 import (
 	"github.com/openware/safebox/pkg/api"
 	"github.com/openware/safebox/pkg/env"
+	"github.com/openware/safebox/pkg/vault"
+	"log"
 )
 
 func initAuth() {
@@ -12,5 +14,10 @@ func initAuth() {
 
 func main() {
 	initAuth()
-	api.StartAPIServer()
+	v, err := vault.New()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	api.StartAPIServer(v)
 }

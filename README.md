@@ -1,5 +1,17 @@
 # safebox
 
+## Generate a new master key
+```bash
+JWT=$(./scripts/jwtgen.rb)
+curl -i -XPOST -H "authorization: Bearer ${JWT}" localhost:8000/api/v2/private/master_key --data '{"driver":"btc"}'
+```
+
+## Generate a new deposit address
+```bash
+JWT=$(./scripts/jwtgen.rb)
+curl -i -XPOST -H "authorization: Bearer ${JWT}" localhost:8000/api/v2/private/deposit_address --data '{"driver":"btc","account_id": 0,"uid": "U0000000000"}'
+```
+
 ## Example of wallet configuration in peatio
 
 ```yaml
