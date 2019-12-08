@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/openware/safebox/pkg/vault"
 )
 
 func notFoundHandler(w http.ResponseWriter, r *http.Request) {
@@ -16,13 +17,13 @@ func notFoundHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // StartAPIServer starts the REST API server
-func StartAPIServer() {
+func StartAPIServer(vault *vault.Vault) {
 	var wait time.Duration = time.Second * 3
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", notFoundHandler)
-	r.HandleFunc("/api/v2/private/master_key", CreateMasterKey).Methods("POST")
-	r.HandleFunc("/api/v2/private/deposit_address", CreateDepositAddress).Methods("POST")
+	r.HandleFunc("/api/v2/private/master_key", CreateMasterKey(vault)).Methods("POST")
+	r.HandleFunc("/api/v2/private/deposit_address", CreateDepositAddress(vault)).Methods("POST")
 	r.HandleFunc("/api/v2/private/info", InfoHandler).Methods("GET", "POST")
 	auth := jwtMiddleware{}
 	r.Use(auth.Middleware)

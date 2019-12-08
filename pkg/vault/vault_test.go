@@ -1,4 +1,4 @@
-package tools
+package vault
 
 import (
 	"encoding/hex"
@@ -37,13 +37,15 @@ func testHTTPServer(
 	return config, ln
 }
 
-func testVaultClient(t *testing.T, handler func(http.ResponseWriter, *http.Request)) net.Listener {
+func testVaultClient(t *testing.T, handler func(http.ResponseWriter, *http.Request)) (net.Listener, *Vault) {
 	config, ln := testHTTPServer(t, http.HandlerFunc(handler))
 	client, err := api.NewClient(config)
 	assert.NoError(t, err)
 	client.SetToken("foo")
-	setVaultClient(client)
-	return ln
+	v := &Vault{
+		Client: client,
+	}
+	return ln, v
 }
 
 func testMasterKey(t *testing.T) *hdkeychain.ExtendedKey {
@@ -166,24 +168,24 @@ func TestStoreChainIndex(t *testing.T) {
 	accID := uint(12)
 
 	t.Run("Succeed to store the chain index", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			data, _ := ioutil.ReadAll(req.Body)
 			assert.Equal(t, `{"index":"15"}`, string(data))
 			assert.Equal(t, "/v1/cubbyhole/public/abc/account/12/0/index", req.RequestURI)
 		})
 		defer ln.Close()
-		err := StoreChainIndex(15, "abc", accID, ChainExternal)
+		err := v.StoreChainIndex(15, "abc", accID, ChainExternal)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		err := StoreChainIndex(15, "abc", accID, ChainExternal)
+		err := v.StoreChainIndex(15, "abc", accID, ChainExternal)
 		assert.Error(t, err, "Error making API request.")
 	})
 }
@@ -192,25 +194,25 @@ func TestGetChainIndex(t *testing.T) {
 	accID := uint(12)
 
 	t.Run("Succeed to store the chain index", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			assert.Equal(t, "/v1/cubbyhole/public/abc/account/12/0/index", req.RequestURI)
 			w.WriteHeader(200)
 			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"index":"17"},"wrap_info":null,"warnings":null,"auth":null}`))
 		})
 		defer ln.Close()
-		idx, err := GetChainIndex("abc", accID, ChainExternal)
+		idx, err := v.GetChainIndex("abc", accID, ChainExternal)
 		assert.NoError(t, err)
 		assert.Equal(t, 17, idx)
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		idx, err := GetChainIndex("abc", accID, ChainExternal)
+		idx, err := v.GetChainIndex("abc", accID, ChainExternal)
 		assert.Error(t, err, "Error making API request.")
 		assert.Equal(t, -1, idx)
 	})
@@ -224,7 +226,7 @@ func TestStoreAccountAddress(t *testing.T) {
 
 	t.Run("Succeed to store the address", func(t *testing.T) {
 		i := 0
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			data, _ := ioutil.ReadAll(req.Body)
 			w.WriteHeader(204)
 			switch i {
@@ -240,18 +242,18 @@ func TestStoreAccountAddress(t *testing.T) {
 			i++
 		})
 		defer ln.Close()
-		err := StoreAccountAddress(privAddr, "abc", accID, chain, addID)
+		err := v.StoreAccountAddress(privAddr, "abc", accID, chain, addID)
 		assert.NoError(t, err)
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		err := StoreAccountAddress(privAddr, "abc", accID, chain, addID)
+		err := v.StoreAccountAddress(privAddr, "abc", accID, chain, addID)
 		assert.Error(t, err, "Error making API request.")
 	})
 }
@@ -263,24 +265,24 @@ func TestGetPublicAddress(t *testing.T) {
 	pubAddr := testAccountAddressPublic(t, chain, addID)
 
 	t.Run("Succeed to retrieve the address", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"pub":"xpub6CvyM2armyZyUsWPPeuxSfsveoXcgPfudcJioy3VBAvkepBcWhFcjbkAN8t6xASmcSZN5fZH4kYKaLCzzdVBdD1Mncm1PoepnwtncUhHV3a"},"wrap_info":null,"warnings":null,"auth":null}`))
 		})
 		defer ln.Close()
-		key, err := GetPublicAddress("abc", accID, chain, addID)
+		key, err := v.GetPublicAddress("abc", accID, chain, addID)
 		assert.NoError(t, err)
 		assert.Equal(t, pubAddr.String(), key.String())
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		key, err := GetPublicAddress("abc", accID, chain, addID)
+		key, err := v.GetPublicAddress("abc", accID, chain, addID)
 		assert.Error(t, err, "Error making API request.")
 		assert.Nil(t, key)
 	})
@@ -293,24 +295,24 @@ func TestGetPrivateAddress(t *testing.T) {
 	privAddr := testAccountAddressPrivate(t, chain, addID)
 
 	t.Run("Succeed to retrieve the address", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"priv":"xprv9ywcwX3xwc1gGPRvHdNx5XwC6mh8Gvx4GPP81adscqPmn1rTy9wNBoRgWtigAKoLVUpgndi5f9jociyAConZaF1uMo7Rp9mnKgpdXac2hTj"},"wrap_info":null,"warnings":null,"auth":null}`))
 		})
 		defer ln.Close()
-		key, err := GetPrivateAddress("abc", accID, chain, addID)
+		key, err := v.GetPrivateAddress("abc", accID, chain, addID)
 		assert.NoError(t, err)
 		assert.Equal(t, privAddr.String(), key.String())
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		key, err := GetPrivateAddress("abc", accID, chain, addID)
+		key, err := v.GetPrivateAddress("abc", accID, chain, addID)
 		assert.Error(t, err, "Error making API request.")
 		assert.Nil(t, key)
 	})
@@ -318,38 +320,38 @@ func TestGetPrivateAddress(t *testing.T) {
 
 func TestGetMasterKeyPrivate(t *testing.T) {
 	t.Run("Succeed to fetch the token", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			assert.Equal(t, "/v1/cubbyhole/private/btc/master/key", req.RequestURI)
 			w.WriteHeader(200)
 			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"priv":"xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"},"wrap_info":null,"warnings":null,"auth":null}`))
 		})
 		defer ln.Close()
 
-		key, err := GetMasterKeyPrivate("btc")
+		key, err := v.GetMasterKeyPrivate("btc")
 		assert.NoError(t, err)
 		assert.Equal(t, testMasterKeyString, key.String())
 	})
 
 	t.Run("Wrong storage format", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(200)
 			w.Write([]byte(`{"request_id":"518af827-c7d4-8ac8-2202-061ea530466d","lease_id":"","renewable":false,"lease_duration":0,"data":{"key":"xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"},"wrap_info":null,"warnings":null,"auth":null}`))
 		})
 		defer ln.Close()
 
-		key, err := GetMasterKeyPrivate("btc")
+		key, err := v.GetMasterKeyPrivate("btc")
 		assert.Error(t, err)
 		assert.Nil(t, key)
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		key, err := GetMasterKeyPrivate("btc")
+		key, err := v.GetMasterKeyPrivate("btc")
 		assert.Error(t, err, "Error making API request.")
 		assert.Nil(t, key)
 	})
@@ -358,7 +360,7 @@ func TestGetMasterKeyPrivate(t *testing.T) {
 func TestStoreMasterKey(t *testing.T) {
 	t.Run("Succeed to store the token", func(t *testing.T) {
 		i := 0
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			i++
 			data, err := ioutil.ReadAll(req.Body)
 			assert.NoError(t, err)
@@ -374,18 +376,18 @@ func TestStoreMasterKey(t *testing.T) {
 		})
 		defer ln.Close()
 
-		err := StoreMasterKey(testMasterKey(t), "btc")
+		err := v.StoreMasterKey(testMasterKey(t), "btc")
 		assert.NoError(t, err)
 	})
 
 	t.Run("Authentication fails", func(t *testing.T) {
-		ln := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(403)
 			w.Write([]byte(`{"errors":["permission denied"]}`))
 		})
 		defer ln.Close()
 
-		err := StoreMasterKey(testMasterKey(t), "btc")
+		err := v.StoreMasterKey(testMasterKey(t), "btc")
 		assert.Error(t, err, "Error making API request.")
 	})
 }

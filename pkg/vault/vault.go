@@ -1,4 +1,4 @@
-package tools
+package vault
 
 import (
 	"fmt"
@@ -9,33 +9,29 @@ import (
 	"github.com/openware/safebox/pkg/env"
 )
 
-// VaultClient points to vault Client
-var VaultClient *api.Client // global variable
-
 var vaultToken = env.FetchDefault("VAULT_TOKEN", "changeme")
 var vaultAddr = env.FetchDefault("VAULT_ADDR", "http://localhost:8200")
 
 const ChainExternal = uint32(0)
 const ChainInternal = uint32(1)
 
-// InitVault initializes vault client
-func InitVault() error {
+type Vault struct {
+	Client *api.Client
+}
+
+func New() (*Vault, error) {
+	v := new(Vault)
 	conf := &api.Config{
 		Address: vaultAddr,
 	}
 
 	client, err := api.NewClient(conf)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	VaultClient = client
-
-	VaultClient.SetToken(vaultToken)
-	return nil
-}
-
-func setVaultClient(client *api.Client) {
-	VaultClient = client
+	v.Client = client
+	v.Client.SetToken(vaultToken)
+	return v, nil
 }
 
 func validateScope(scope string) error {
@@ -89,8 +85,8 @@ func vaultPathAccountIndex(scope string, ccyCode string, accountID uint, chainID
 	return fmt.Sprintf("%s/index", path), nil
 }
 
-func StoreChainIndex(index int, ccyCode string, accountID uint, chainID uint32) error {
-	c := VaultClient.Logical()
+func (v *Vault) StoreChainIndex(index int, ccyCode string, accountID uint, chainID uint32) error {
+	c := v.Client.Logical()
 	path, err := vaultPathChainIndex("public", ccyCode, accountID, chainID)
 	if err != nil {
 		return err
@@ -108,28 +104,28 @@ func StoreChainIndex(index int, ccyCode string, accountID uint, chainID uint32) 
 	return err
 }
 
-func GetChainIndex(ccyCode string, accountID uint, chainID uint32) (int, error) {
-	c := VaultClient.Logical()
+func (v *Vault) GetChainIndex(ccyCode string, accountID uint, chainID uint32) (int, error) {
+	c := v.Client.Logical()
 	path, err := vaultPathChainIndex("public", ccyCode, accountID, chainID)
 	if err != nil {
 		return -1, err
 	}
-	v, err := c.Read(path)
+	val, err := c.Read(path)
 	if err != nil {
 		return -1, err
 	}
-	if v == nil {
+	if val == nil {
 		return -2, fmt.Errorf("index not found")
 	}
-	index := v.Data["index"]
+	index := val.Data["index"]
 	if index == nil {
 		return -2, fmt.Errorf("index not found in object")
 	}
 	return strconv.Atoi(fmt.Sprint(index))
 }
 
-func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID uint, chainID uint32, addID uint32) error {
-	c := VaultClient.Logical()
+func (v *Vault) StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID uint, chainID uint32, addID uint32) error {
+	c := v.Client.Logical()
 	path, err := vaultPathAccountKey("private", ccyCode, accountID, chainID, addID)
 	if err != nil {
 		return err
@@ -161,48 +157,48 @@ func StoreAccountAddress(key *hdkeychain.ExtendedKey, ccyCode string, accountID 
 	return err
 }
 
-func GetPublicAddress(ccyCode string, accountID uint, chainID uint32, addID uint32) (*hdkeychain.ExtendedKey, error) {
-	c := VaultClient.Logical()
+func (v *Vault) GetPublicAddress(ccyCode string, accountID uint, chainID uint32, addID uint32) (*hdkeychain.ExtendedKey, error) {
+	c := v.Client.Logical()
 	path, err := vaultPathAccountKey("public", ccyCode, accountID, chainID, addID)
 	if err != nil {
 		return nil, err
 	}
-	v, err := c.Read(path)
+	val, err := c.Read(path)
 	if err != nil {
 		return nil, err
 	}
-	if v == nil {
+	if val == nil {
 		return nil, fmt.Errorf("public key not found")
 	}
-	pubStr := v.Data["pub"]
+	pubStr := val.Data["pub"]
 	if pubStr == nil {
 		return nil, fmt.Errorf("public key not found")
 	}
 	return hdkeychain.NewKeyFromString(fmt.Sprint(pubStr))
 }
 
-func GetPrivateAddress(codeCCY string, accountID uint, chainID uint32, addID uint32) (*hdkeychain.ExtendedKey, error) {
-	c := VaultClient.Logical()
+func (v *Vault) GetPrivateAddress(codeCCY string, accountID uint, chainID uint32, addID uint32) (*hdkeychain.ExtendedKey, error) {
+	c := v.Client.Logical()
 	path, err := vaultPathAccountKey("private", codeCCY, accountID, chainID, addID)
 	if err != nil {
 		return nil, err
 	}
-	v, err := c.Read(path)
+	val, err := c.Read(path)
 	if err != nil {
 		return nil, err
 	}
-	if v == nil {
+	if val == nil {
 		return nil, fmt.Errorf("private key not found")
 	}
-	pubStr := v.Data["priv"]
+	pubStr := val.Data["priv"]
 	if pubStr == nil {
 		return nil, fmt.Errorf("private key not found")
 	}
 	return hdkeychain.NewKeyFromString(fmt.Sprint(pubStr))
 }
 
-func StoreMasterKey(masterKey *hdkeychain.ExtendedKey, codeCCY string) error {
-	c := VaultClient.Logical()
+func (v *Vault) StoreMasterKey(masterKey *hdkeychain.ExtendedKey, codeCCY string) error {
+	c := v.Client.Logical()
 	path, err := vaultPathMasterKey("private", codeCCY)
 	if err != nil {
 		return err
@@ -232,42 +228,42 @@ func StoreMasterKey(masterKey *hdkeychain.ExtendedKey, codeCCY string) error {
 	return err
 }
 
-func GetMasterKeyPublic(codeCCY string) (*hdkeychain.ExtendedKey, error) {
-	c := VaultClient.Logical()
+func (v *Vault) GetMasterKeyPublic(codeCCY string) (*hdkeychain.ExtendedKey, error) {
+	c := v.Client.Logical()
 	path, err := vaultPathMasterKey("public", codeCCY)
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := c.Read(path)
+	val, err := c.Read(path)
 	if err != nil {
 		return nil, err
 	}
-	if v == nil {
+	if val == nil {
 		return nil, fmt.Errorf("public master key not found")
 	}
-	keyStr := v.Data["pub"]
+	keyStr := val.Data["pub"]
 	if keyStr == nil {
 		return nil, fmt.Errorf("public master key not found")
 	}
 	return hdkeychain.NewKeyFromString(fmt.Sprint(keyStr))
 }
 
-func GetMasterKeyPrivate(codeCCY string) (*hdkeychain.ExtendedKey, error) {
-	c := VaultClient.Logical()
+func (v *Vault) GetMasterKeyPrivate(codeCCY string) (*hdkeychain.ExtendedKey, error) {
+	c := v.Client.Logical()
 	path, err := vaultPathMasterKey("private", codeCCY)
 	if err != nil {
 		return nil, err
 	}
 
-	v, err := c.Read(path)
+	val, err := c.Read(path)
 	if err != nil {
 		return nil, err
 	}
-	if v == nil {
+	if val == nil {
 		return nil, fmt.Errorf("private master key not found")
 	}
-	keyStr := v.Data["priv"]
+	keyStr := val.Data["priv"]
 	if keyStr == nil {
 		return nil, fmt.Errorf("private master key not found")
 	}

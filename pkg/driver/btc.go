@@ -5,7 +5,7 @@ import (
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcutil/hdkeychain"
-	"github.com/openware/safebox/pkg/tools"
+	"github.com/openware/safebox/pkg/vault"
 )
 
 type CreateDepositAddressParams struct {
@@ -31,6 +31,7 @@ type GenericDriver interface {
 
 type BTC struct {
 	codeCCY string
+	vault   *vault.Vault
 }
 
 func NewBTC(codeCCY string) *BTC {
@@ -41,7 +42,7 @@ func NewBTC(codeCCY string) *BTC {
 
 func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddress, error) {
 	add := &DepositAddress{}
-	idx, err := tools.GetChainIndex(d.codeCCY, uint(p.AccountID), tools.ChainExternal)
+	idx, err := d.vault.GetChainIndex(d.codeCCY, uint(p.AccountID), vault.ChainExternal)
 
 	if err != nil {
 		if idx != -2 {
@@ -56,7 +57,7 @@ func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddre
 		return nil, fmt.Errorf("Account ID can't be negative")
 	}
 
-	masterKeyNeuter, err := tools.GetMasterKeyPublic(d.codeCCY)
+	masterKeyNeuter, err := d.vault.GetMasterKeyPublic(d.codeCCY)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +69,7 @@ func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddre
 	}
 
 	// This gives the path: M/xH/0
-	accExt, err := acc.Child(tools.ChainExternal)
+	accExt, err := acc.Child(vault.ChainExternal)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +90,7 @@ func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddre
 		UID:         p.UID,
 		ExAddressID: uint32(idx),
 	}
-	err = tools.StoreChainIndex(idx+1, d.codeCCY, uint(p.AccountID), tools.ChainExternal)
+	err = d.vault.StoreChainIndex(idx+1, d.codeCCY, uint(p.AccountID), vault.ChainExternal)
 	if err != nil {
 		return nil, err
 	}
@@ -108,6 +109,6 @@ func (d *BTC) CreateMasterKey() error {
 		return err
 	}
 
-	tools.StoreMasterKey(masterKey, d.codeCCY)
+	d.vault.StoreMasterKey(masterKey, d.codeCCY)
 	return nil
 }
