@@ -53,6 +53,7 @@ func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddre
 	if idx < 0 {
 		return nil, fmt.Errorf("Chain index can't be negative")
 	}
+	idx++
 	if p.AccountID < 0 {
 		return nil, fmt.Errorf("Account ID can't be negative")
 	}
@@ -90,7 +91,7 @@ func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddre
 		UID:         p.UID,
 		ExAddressID: uint32(idx),
 	}
-	err = d.vault.StoreChainIndex(idx+1, d.codeCCY, uint(p.AccountID), vault.ChainExternal)
+	err = d.vault.StoreChainIndex(idx, d.codeCCY, uint(p.AccountID), vault.ChainExternal)
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +100,11 @@ func (d *BTC) CreateDepositAddress(p *CreateDepositAddressParams) (*DepositAddre
 }
 
 func (d *BTC) CreateMasterKey() error {
+	v, err := d.vault.GetMasterKeyPrivate("btc")
+	if v != nil {
+		return fmt.Errorf("MasterKey already exists")
+	}
+
 	seed, err := hdkeychain.GenerateSeed(hdkeychain.RecommendedSeedLen)
 	if err != nil {
 		return err
