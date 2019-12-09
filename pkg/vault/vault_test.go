@@ -49,6 +49,13 @@ func testVaultClient(t *testing.T, handler func(http.ResponseWriter, *http.Reque
 }
 
 func testMasterKey(t *testing.T) *hdkeychain.ExtendedKey {
+	ln, v := testVaultClient(t, func(w http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/v1/cubbyhole/private/btc/master/key", req.RequestURI)
+		w.WriteHeader(200)
+	})
+	defer ln.Close()
+	_, err := v.GetMasterKeyPrivate("btc")
+	assert.Error(t, err, "private master key not found")
 	testVec1MasterHex := "000102030405060708090a0b0c0d0e0f"
 	masterSeed, err := hex.DecodeString(testVec1MasterHex)
 	assert.NoError(t, err)
